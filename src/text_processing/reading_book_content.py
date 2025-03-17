@@ -3,8 +3,6 @@ meow
 """
 from typing import TextIO, Generator
 
-from pylint.checkers.utils import is_comprehension
-
 
 def read_at(text_stream: TextIO, pos: int):
     _curr = text_stream.tell()
@@ -63,34 +61,6 @@ def stream_chunked_text(input_stream: TextIO, chunk_size: int) -> Generator[str,
             break
         yield chunk
 
-def process_chunk(chunk: str, divisors: int,
-                  eol: bool) -> tuple[list[str], int, bool, bool]:
-    _paragraph: list[str] = []
-    buffer: str = ''
-
-    for char in chunk:
-        buffer += char
-        if char == '\n' and eol:
-            # new paragraph
-            eol = False
-            if len(_paragraph) != 0:
-                return _paragraph, divisors, eol, True
-            _paragraph.clear()
-        elif char in '.!?':
-            # new sentence
-            _paragraph.append(buffer)
-            buffer = ''
-        elif char == '\n':
-            eol = True
-
-        divisors += 1 if char == '=' else 0
-        if divisors == 5 and buffer.strip().split('\n').pop() == '-----':
-            divisors = 0
-            _paragraph.append(buffer.rstrip()[:-5])
-            return _paragraph, divisors, eol, True
-
-        return [], 0, False, False
-
 
 def stream_paragraphs(input_stream: TextIO, chunk_size: int, skip_preamble: bool = True) -> Generator[list[str], None, None]:
     """
@@ -108,46 +78,44 @@ def stream_paragraphs(input_stream: TextIO, chunk_size: int, skip_preamble: bool
         read_preamble(input_stream)
 
     _paragraph: list[str] = []
+    pos = input_stream.tell()
     buffer = ''
     eol = False # end of line
     consecutive_divisors = 0
     failed_tries = 0
-    is_complete = True
 
     for chunk in stream_chunked_text(input_stream, chunk_size):
         if not chunk:
             break
 
         # handling incoming characters
-        # for char in chunk:
-        #     buffer += char
-        #     if char == '\n' and eol:
-        #         # new paragraph
-        #         eol = False
-        #         failed_tries = 0
-        #         if len(_paragraph) != 0:
-        #             yield _paragraph
-        #         pos = input_stream.tell()
-        #         _paragraph.clear()
-        #     elif char in '.!?':
-        #         # new sentence
-        #         _paragraph.append(buffer)
-        #         buffer = ''
-        #     elif char == '\n':
-        #         eol = True
-        #
-        #     # handle publisher information
-        #     consecutive_divisors += 1 if char == '-' else 0
-        #     if consecutive_divisors == 5 and buffer.strip().split('\n').pop() == '-----':
-        #         _paragraph.append(buffer.rstrip()[:-5])
-        #         yield _paragraph
-        #         return
-        #
-        pos = input_stream.tell()
-        _paragraph, consecutive_divisors, eol, is_complete = process_chunk(input_stream, chunk, consecutive_divisors, eol)
+        for char in chunk:
+            buffer += char
+            if char == '\n' and eol:
+                # new paragraph
+                eol = False
+                failed_tries = 0
+                if len(_paragraph) != 0:
+                    yield _paragraph
+                pos = input_stream.tell()
+                _paragraph.clear()
+            elif char in '.!?':
+                # new sentence
+                _paragraph.append(buffer)
+                buffer = ''
+            elif char == '\n':
+                eol = True
+
+            # handle publisher information
+            consecutive_divisors = consecutive_divisors + 1 if char == '-' else 0
+            if consecutive_divisors == 5 and buffer.strip().split('\n').pop() == '-----':
+                _paragraph.append(buffer.rstrip()[:-5])
+                yield _paragraph
+                return
+
 
         # if there is a paragraph that extends beyond this chunk, increase fail counter
-        if not is_complete:
+        if len(_paragraph) != 0:
             input_stream.seek(pos)
             failed_tries += 1
         # if the paragraph is bigger than a chunk, make future chunks bigger
