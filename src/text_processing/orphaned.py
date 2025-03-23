@@ -1,7 +1,7 @@
-"""
-meow
-"""
-from typing import TextIO, Generator
+from typing import TextIO
+
+from text_processing import read_preamble
+from text_processing import stream_chunked_text
 
 
 def read_at(text_stream: TextIO, pos: int):
@@ -20,49 +20,7 @@ def peek_line(text_stream: TextIO) -> str:
     return _line
 
 
-def read_preamble(input_stream: TextIO) -> str | None:
-    """
-    Reads preamble, if exists, in the streamed document.
-    Preamble should be ten lines long at most, and end with
-    two empty lines.
-
-    Args:
-        input_stream (TextIO): streamed text file
-
-    Returns:
-        string: preamble of the text document
-    """
-    preamble = ''
-    for _ in range(0, 11):
-        current_line = input_stream.readline()
-        if len(current_line.rstrip()) == len(peek_line(input_stream).rstrip()) == 0:
-            input_stream.readline()
-            return preamble
-        preamble += current_line
-
-    input_stream.seek(0)
-    return None
-
-
-def stream_chunked_text(input_stream: TextIO, chunk_size: int) -> Generator[str, None, None]:
-    """
-    Streams chunks of specified length from the text stream, until it ends.
-
-    Args:
-        input_stream (TextIO): stream to read from
-        chunk_size (int): number of characters in each chunk
-
-    Yields:
-        str: The chunk of text
-    """
-    while True:
-        chunk = input_stream.read(chunk_size)
-        if not chunk:
-            break
-        yield chunk
-
-
-def stream_paragraphs(input_stream: TextIO, chunk_size: int, skip_preamble: bool = True) -> Generator[list[str], None, None]:
+def stream_paragraphs(input_stream: TextIO, chunk_size: int = 4096, skip_preamble: bool = True):
     """
     Generator function that yields consecutive paragraphs from the text stream provided
 
@@ -108,7 +66,7 @@ def stream_paragraphs(input_stream: TextIO, chunk_size: int, skip_preamble: bool
 
             # handle publisher information
             consecutive_divisors = consecutive_divisors + 1 if char == '-' else 0
-            if consecutive_divisors == 5 and buffer.strip().split('\n').pop() == '-----':
+            if consecutive_divisors == 5 and len(buffer) < 128 and buffer.strip().split('\n').pop() == '-----':
                 _paragraph.append(buffer.rstrip()[:-5])
                 yield _paragraph
                 return
@@ -128,4 +86,3 @@ def stream_paragraphs(input_stream: TextIO, chunk_size: int, skip_preamble: bool
     if len(_paragraph) != 0:
         yield _paragraph
         _paragraph.clear()
-

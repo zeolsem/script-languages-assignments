@@ -1,1 +1,5 @@
-from .reading_book_content import read_preamble, stream_paragraphs
+from text_processing import stream_phrases
+from a_count_paragraphs import count_paragraphs
+from b_nonwhite_characters import nonwhite_characters
+from c_proper_noun_phrases_percentage import percentage_of_sentences_with_proper_nouns
+from d_longest_sentence import longest_sentence
